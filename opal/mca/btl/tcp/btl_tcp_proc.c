@@ -839,44 +839,18 @@ void mca_btl_tcp_proc_accept(mca_btl_tcp_proc_t* btl_proc, struct sockaddr* addr
         }
         switch (addr->sa_family) {
         case AF_INET:
-            if( memcmp( &btl_endpoint->endpoint_addr->addr_inet,
-                        &(((struct sockaddr_in*)addr)->sin_addr),
-                        sizeof(struct in_addr) ) ) {
-                char tmp[2][16];
-                opal_output_verbose(20, opal_btl_base_framework.framework_output,
-                                    "btl: tcp: Match incoming connection from %s %s with locally known IP %s failed (iface %d/%d)!\n",
-                                    OPAL_NAME_PRINT(btl_proc->proc_opal->proc_name),
-                                    inet_ntop(AF_INET, (void*)&((struct sockaddr_in*)addr)->sin_addr,
-                                              tmp[0], 16),
-                                    inet_ntop(AF_INET, (void*)(struct in_addr*)&btl_endpoint->endpoint_addr->addr_inet,
-                                              tmp[1], 16),
-                                    (int)i, (int)btl_proc->proc_endpoint_count);
+            if (btl_endpoint->endpoint_state != MCA_BTL_TCP_CLOSED) {
+                found_match = 1;
+                match_btl_endpoint = btl_endpoint;
                 continue;
-            } else if (btl_endpoint->endpoint_state != MCA_BTL_TCP_CLOSED) {
-                 found_match = 1;
-                 match_btl_endpoint = btl_endpoint;
-                 continue;
             }
             break;
 #if OPAL_ENABLE_IPV6
         case AF_INET6:
-            if( memcmp( &btl_endpoint->endpoint_addr->addr_inet,
-                        &(((struct sockaddr_in6*)addr)->sin6_addr),
-                        sizeof(struct in6_addr) ) ) {
-                char tmp[2][INET6_ADDRSTRLEN];
-                opal_output_verbose(20, opal_btl_base_framework.framework_output,
-                                    "btl: tcp: Match incoming connection from %s %s with locally known IP %s failed (iface %d/%d)!\n",
-                                    OPAL_NAME_PRINT(btl_proc->proc_opal->proc_name),
-                                    inet_ntop(AF_INET6, (void*)&((struct sockaddr_in6*)addr)->sin6_addr,
-                                              tmp[0], INET6_ADDRSTRLEN),
-                                    inet_ntop(AF_INET6, (void*)(struct in6_addr*)&btl_endpoint->endpoint_addr->addr_inet,
-                                              tmp[1], INET6_ADDRSTRLEN),
-                                    (int)i, (int)btl_proc->proc_endpoint_count);
+            if (btl_endpoint->endpoint_state != MCA_BTL_TCP_CLOSED) {
+                found_match = 1;
+                match_btl_endpoint = btl_endpoint;
                 continue;
-            } else if (btl_endpoint->endpoint_state != MCA_BTL_TCP_CLOSED) {
-                 found_match = 1;
-                 match_btl_endpoint = btl_endpoint;
-                 continue;
             }
             break;
 #endif
@@ -900,38 +874,6 @@ void mca_btl_tcp_proc_accept(mca_btl_tcp_proc_t* btl_proc, struct sockaddr* addr
     }
     /* No further use of this socket. Close it */
     CLOSE_THE_SOCKET(sd);
-    {
-        char *addr_str = NULL, *tmp;
-        char ip[128];
-        ip[sizeof(ip) - 1] = '\0';
-
-        for (size_t i = 0; i < btl_proc->proc_endpoint_count; i++) {
-            mca_btl_base_endpoint_t* btl_endpoint = btl_proc->proc_endpoints[i];
-            if (btl_endpoint->endpoint_addr->addr_family != addr->sa_family) {
-                continue;
-            }
-            inet_ntop(btl_endpoint->endpoint_addr->addr_family,
-                      (void*) &(btl_endpoint->endpoint_addr->addr_inet),
-                      ip, sizeof(ip) - 1);
-            if (NULL == addr_str) {
-                (void)asprintf(&tmp, "\n\t%s", ip);
-            } else {
-                (void)asprintf(&tmp, "%s\n\t%s", addr_str, ip);
-                free(addr_str);
-            }
-            addr_str = tmp;
-        }
-        opal_show_help("help-mpi-btl-tcp.txt", "dropped inbound connection",
-                       true, opal_process_info.nodename,
-                       getpid(),
-                       btl_proc->proc_opal->proc_hostname,
-                       OPAL_NAME_PRINT(btl_proc->proc_opal->proc_name),
-                       opal_net_get_hostname((struct sockaddr*)addr),
-                       (NULL == addr_str) ? "NONE" : addr_str);
-        if (NULL != addr_str) {
-            free(addr_str);
-        }
-    }
     OPAL_THREAD_UNLOCK(&btl_proc->proc_lock);
 }
 
